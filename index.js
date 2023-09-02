@@ -1,77 +1,64 @@
-var __extends = (this && this.__extends) || (function () {
-    var extendStatics = function (d, b) {
-        extendStatics = Object.setPrototypeOf ||
-            ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-            function (d, b) { for (var p in b) if (Object.prototype.hasOwnProperty.call(b, p)) d[p] = b[p]; };
-        return extendStatics(d, b);
-    };
-    return function (d, b) {
-        if (typeof b !== "function" && b !== null)
-            throw new TypeError("Class extends value " + String(b) + " is not a constructor or null");
-        extendStatics(d, b);
-        function __() { this.constructor = d; }
-        d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
-    };
-})();
-var __assign = (this && this.__assign) || function () {
-    __assign = Object.assign || function(t) {
-        for (var s, i = 1, n = arguments.length; i < n; i++) {
-            s = arguments[i];
-            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p))
-                t[p] = s[p];
-        }
-        return t;
-    };
-    return __assign.apply(this, arguments);
+"use strict";
+var __classPrivateFieldSet = (this && this.__classPrivateFieldSet) || function (receiver, state, value, kind, f) {
+    if (kind === "m") throw new TypeError("Private method is not writable");
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a setter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot write private member to an object whose class did not declare it");
+    return (kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value)), value;
 };
-var canvas = document.createElement("canvas");
-var ctx = canvas.getContext("2d");
+var __classPrivateFieldGet = (this && this.__classPrivateFieldGet) || function (receiver, state, kind, f) {
+    if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
+    if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
+    return kind === "m" ? f : kind === "a" ? f.call(receiver) : f ? f.value : state.get(receiver);
+};
+var _Spawn_bulletOptions, _Danmaku_onUpdate;
+const canvas = document.createElement("canvas");
+const ctx = canvas.getContext("2d");
 canvas.width = window.innerHeight / 1.3;
 canvas.height = window.innerHeight;
-canvas.oncontextmenu = function () {
+canvas.oncontextmenu = () => {
     return false;
 };
 ctx.fillStyle = "white";
 ctx.strokeStyle = "white";
+ctx.shadowColor = "white";
 ctx.lineWidth = 5;
 document.body.append(canvas);
-var Vector = /** @class */ (function () {
-    function Vector(x, y) {
+class Vector {
+    constructor(x, y) {
         this.x = x;
         this.y = y;
     }
-    Vector.prototype.setPosition = function (x, y) {
+    setPosition(x, y) {
         this.x = x;
         this.y = y;
-    };
-    return Vector;
-}());
-var drawCircle = function (pos, r) {
+    }
+}
+const drawCircle = (pos, r) => {
     ctx.beginPath();
     ctx.arc(pos.x, pos.y, r, 0, Math.PI * 2);
     ctx.fill();
 };
-var TWO_PI = Math.PI * 2;
-var polygon = function (pos, r, n) {
-    var angle = TWO_PI / n;
-    var res = [];
-    for (var i = 0; i < TWO_PI; i += angle) {
+const TWO_PI = Math.PI * 2;
+const polygon = (pos, r, n) => {
+    let angle = TWO_PI / n;
+    const res = [];
+    for (let i = 0; i < TWO_PI; i += angle) {
         res.push(new Vector(pos.x + Math.cos(i) * r, pos.y + Math.sin(i) * r));
     }
     return res;
 };
-var drawShape = function (points) {
+const drawShape = (points) => {
     ctx.beginPath();
-    for (var i = 0; i < points.length; i++) {
-        var v = points[i];
+    for (let i = 0; i < points.length; i++) {
+        const v = points[i];
         ctx.lineTo(v.x, v.y);
     }
     ctx.fill();
 };
-var rotatePoints = function (points, deg, ogPoint) {
-    var val = deg / 100;
-    for (var i = 0; i < points.length; i++) {
-        var point = points[i];
+const rotatePoints = (points, deg, ogPoint) => {
+    const val = deg / 100;
+    for (let i = 0; i < points.length; i++) {
+        const point = points[i];
         point.setPosition(Math.cos(val) * (point.x - ogPoint.x) -
             Math.sin(val) * (point.y - ogPoint.y) +
             ogPoint.x, Math.sin(val) * (point.x - ogPoint.x) +
@@ -79,7 +66,7 @@ var rotatePoints = function (points, deg, ogPoint) {
             ogPoint.y);
     }
 };
-var rand = function (limit, rounded) {
+const rand = (limit, rounded) => {
     var val = Math.random() * limit;
     if (rounded)
         return Math.round(val);
@@ -88,48 +75,49 @@ var rand = function (limit, rounded) {
 /*
  *WORKING SPACE BELOW
  */
-var Spawn = /** @class */ (function (_super) {
-    __extends(Spawn, _super);
-    function Spawn(x, y, direction) {
-        var _this = _super.call(this, x, y) || this;
-        _this.direction = direction;
-        _this.interval = 0;
-        return _this;
+class Spawn extends Vector {
+    constructor(x, y, direction, bulletOptions) {
+        super(x, y);
+        _Spawn_bulletOptions.set(this, void 0);
+        this.direction = direction;
+        this.interval = 0;
+        __classPrivateFieldSet(this, _Spawn_bulletOptions, bulletOptions, "f");
     }
-    Spawn.prototype.setDirection = function (newVal) {
+    setDirection(newVal) {
         this.direction = newVal;
-    };
-    Spawn.prototype.fire = function (bulletSpeed, bulletSize) {
+    }
+    fire(bulletSpeed, bulletSize) {
         bullets.push(new Bullet(this.x, this.y, this.direction, {
             r: bulletSize,
             speed: bulletSpeed,
+            onCreate: __classPrivateFieldGet(this, _Spawn_bulletOptions, "f").onCreate,
         }));
-    };
-    Spawn.prototype.startFire = function (bulletSpeed, bulletPerSec, bulletSize) {
-        var _this = this;
-        this.interval = setInterval(function () {
-            _this.fire(bulletSpeed, bulletSize);
-        }, 1000 / bulletPerSec);
-    };
-    Spawn.prototype.stopBullet = function () {
-        clearInterval(this.interval);
-    };
-    return Spawn;
-}(Vector));
-var Bullet = /** @class */ (function (_super) {
-    __extends(Bullet, _super);
-    function Bullet(x, y, direction, options) {
-        var _this = _super.call(this, x, y) || this;
-        _this.direction = direction;
-        _this.speed = options.speed ? options.speed : 3;
-        _this.r = options.r ? options.r : 3;
-        return _this;
     }
-    Bullet.prototype.update = function () {
+    startFire(bulletSpeed, bulletPerSec, bulletSize) {
+        this.interval = setInterval(() => {
+            this.fire(bulletSpeed, bulletSize);
+        }, 1000 / bulletPerSec);
+    }
+    stopBullet() {
+        clearInterval(this.interval);
+    }
+}
+_Spawn_bulletOptions = new WeakMap();
+class Bullet extends Vector {
+    constructor(x, y, direction, options) {
+        super(x, y);
+        this.removed = false;
+        this.direction = direction;
+        this.speed = options.speed ? options.speed : 3;
+        this.r = options.r ? options.r : 3;
+        if (options.onCreate)
+            options.onCreate(this);
+    }
+    update() {
         this.x = this.x + this.speed * Math.cos(this.direction);
         this.y = this.y + this.speed * Math.sin(this.direction);
-    };
-    Bullet.prototype.inBorder = function () {
+    }
+    inBorder() {
         if (this.x + this.r < 0 ||
             this.x - this.r > canvas.width ||
             this.y + this.r < 0 ||
@@ -137,78 +125,112 @@ var Bullet = /** @class */ (function (_super) {
             return false;
         }
         return true;
-    };
-    return Bullet;
-}(Vector));
-var Danmaku = /** @class */ (function (_super) {
-    __extends(Danmaku, _super);
-    function Danmaku(x, y, options) {
-        var _this = _super.call(this, x, y) || this;
-        _this.r = options.r ? options.r : 30;
-        _this.rotation = options.rotationSpeed ? options.rotationSpeed : 10;
-        _this.spawns = polygon(_this, _this.r, options.spawner ? options.spawner : 6).map(function (point) {
-            var angle = Math.atan2(point.y - _this.y, point.x - _this.x);
-            var spawn = new Spawn(point.x, point.y, angle);
-            setTimeout(function () {
-                return spawn.startFire(options.bulletSpeed ? options.bulletSpeed : 2, options.bulletPerSec ? options.bulletPerSec : 5, options.bulletSize ? options.bulletSize : 3);
-            }, 0.3);
+    }
+}
+class Danmaku extends Vector {
+    constructor(x, y, options) {
+        super(x, y);
+        _Danmaku_onUpdate.set(this, void 0);
+        this.r = options.r != null ? options.r : 30;
+        this.rotation = options.rotationSpeed != null ? options.rotationSpeed : 10;
+        this.rotationChange = options.rotationChange
+            ? Object.assign(Object.assign({}, options.rotationChange), { speedChange: options.rotationChange.speedChange / 10 }) : undefined;
+        const bulletOptions = options.bulletOptions
+            ? {
+                speed: options.bulletOptions.speed ? options.bulletOptions.speed : 4,
+                size: options.bulletOptions.size ? options.bulletOptions.size : 5,
+                bulletPerSec: options.bulletOptions.bulletPerSec
+                    ? options.bulletOptions.bulletPerSec
+                    : 20,
+                onCreate: options.bulletOptions.onCreate,
+            }
+            : {
+                speed: 4,
+                size: 5,
+                bulletPerSec: 20,
+                onCreate: undefined,
+            };
+        this.spawns = polygon(this, this.r, options.spawner ? options.spawner : 6).map((point) => {
+            const angle = Math.atan2(point.y - this.y, point.x - this.x);
+            const spawn = new Spawn(point.x, point.y, angle, {
+                onCreate: bulletOptions.onCreate,
+            });
+            setTimeout(() => spawn.startFire(bulletOptions.speed, bulletOptions.bulletPerSec, bulletOptions.size), options.createOptions ? options.createOptions.bulletDelayInMs : 10);
             return spawn;
         });
-        return _this;
+        __classPrivateFieldSet(this, _Danmaku_onUpdate, options.onUpdate ? options.onUpdate : function () { }, "f");
+        if (options.onCreate)
+            options.onCreate();
     }
-    Danmaku.prototype.update = function () {
-        var _this = this;
+    update() {
+        var _a;
+        if (this.rotationChange) {
+            if (this.rotationChange.speedLimit &&
+                (this.rotation > this.rotationChange.speedLimit ||
+                    this.rotation < this.rotationChange.speedLimit * -1)) {
+                this.rotationChange.speedChange = this.rotationChange.speedChange * -1;
+            }
+            this.rotation += (_a = this.rotationChange) === null || _a === void 0 ? void 0 : _a.speedChange;
+        }
         rotatePoints(this.spawns, this.rotation, this);
-        this.spawns.forEach(function (spawn) {
-            spawn.setDirection(Math.atan2(spawn.y - _this.y, spawn.x - _this.x));
+        this.spawns.forEach((spawn) => {
+            spawn.setDirection(Math.atan2(spawn.y - this.y, spawn.x - this.x));
             drawCircle(spawn, 2);
         });
-    };
-    Danmaku.prototype.setPosition = function (x, y) {
-        var _this = this;
-        this.spawns.forEach(function (spawn) {
-            spawn.setPosition(spawn.x - _this.x - x, spawn.y - _this.y - y);
+        __classPrivateFieldGet(this, _Danmaku_onUpdate, "f").call(this);
+    }
+    setPosition(x, y) {
+        this.spawns.forEach((spawn) => {
+            spawn.setPosition(spawn.x - this.x - x, spawn.y - this.y - y);
         });
         this.x = x;
         this.y = y;
-    };
-    return Danmaku;
-}(Vector));
-var mouse = new Vector(0, 0);
-canvas.addEventListener("mousemove", function (e) {
+    }
+}
+_Danmaku_onUpdate = new WeakMap();
+const mouse = new Vector(0, 0);
+canvas.addEventListener("mousemove", (e) => {
     mouse.setPosition(e.x, e.y);
 });
-var bullets = [];
-var options = {
-    r: 1,
-    rotationSpeed: 7,
-    spawner: 2,
-    bulletPerSec: 60,
-    bulletSpeed: 4,
-    bulletSize: 5,
-    bulletAge: 2,
+let bullets = [];
+const options = {
+    r: 0.1,
+    rotationSpeed: 3,
+    // rotationChange: {
+    //   speedChange: 2,
+    // speedLimit: 20,
+    // },
+    spawner: 12,
+    bulletOptions: {
+        bulletPerSec: 30,
+        speed: 5,
+        size: 10,
+    },
+    createOptions: {
+        bulletDelayInMs: 300,
+    },
 };
-var danmaku = new Danmaku(canvas.width / 2, canvas.height / 2, options);
-var danmaku1 = new Danmaku(canvas.width / 2, canvas.height / 2, __assign(__assign({}, options), { rotationSpeed: options.rotationSpeed * -1 }));
-var draw = function () {
+const danmaku = new Danmaku(canvas.width / 2, canvas.height / 2, options);
+const danmaku1 = new Danmaku(canvas.width / 2, canvas.height / 2, Object.assign(Object.assign({}, options), { rotationSpeed: options.rotationSpeed * -1 }));
+const draw = () => {
     drawCircle(mouse, 5);
     danmaku.update();
     danmaku1.update();
-    for (var i = 0; i < bullets.length; i++) {
-        var bullet = bullets[i];
+    for (let i = 0; i < bullets.length; i++) {
+        const bullet = bullets[i];
         bullet.update();
         if (bullet.inBorder()) {
             drawCircle(bullet, bullet.r);
         }
         else {
             delete bullets[i];
-            bullets.splice(i, 1);
         }
     }
+    bullets = bullets.filter((bullet) => bullet);
 };
-var startAnimation = function () {
-    var framerate = 1000 / 60;
-    var animate = function () {
+const startAnimation = () => {
+    const framerate = 1000 / 60;
+    const animate = () => {
         // requestAnimationFrame(animate);
         setTimeout(animate, framerate);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
