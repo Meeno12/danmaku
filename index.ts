@@ -1,6 +1,6 @@
 const canvas: HTMLCanvasElement = document.createElement("canvas");
 const ctx: CanvasRenderingContext2D = canvas.getContext("2d")!;
-canvas.width = window.innerHeight / 1.3;
+canvas.width = window.innerWidth / 2;
 canvas.height = window.innerHeight;
 canvas.oncontextmenu = () => {
   return false;
@@ -10,7 +10,7 @@ ctx.strokeStyle = "white";
 ctx.shadowColor = "white";
 ctx.lineWidth = 5;
 
-document.body.append(canvas);
+document.getElementById("container")?.append(canvas);
 
 class Vector {
   x: number;
@@ -103,6 +103,11 @@ class Spawn extends Vector {
     this.direction = newVal;
   }
 
+  movePosition(distance: number, direction: number): void {
+    this.x = this.x + distance * Math.cos(direction);
+    this.y = this.y + distance * Math.sin(direction);
+  }
+
   fire(bulletSpeed: number, bulletSize: number) {
     bullets.push(
       new Bullet(this.x, this.y, this.direction, {
@@ -175,6 +180,13 @@ class Danmaku extends Vector {
         speedChange: number;
       }
     | undefined;
+  bulletOptions: {
+    speed: number;
+    size: number;
+    bulletPerSec: number;
+    createDelay: number;
+  };
+  hidden: boolean = false;
 
   #onUpdate: () => void;
 
@@ -219,13 +231,20 @@ class Danmaku extends Vector {
             ? options.bulletOptions.bulletPerSec
             : 20,
           onCreate: options.bulletOptions.onCreate,
+          createDelay: options.createOptions
+            ? options.createOptions.bulletDelayInMs
+            : 10,
         }
       : {
           speed: 4,
           size: 5,
           bulletPerSec: 20,
           onCreate: undefined,
+          createDelay: options.createOptions
+            ? options.createOptions.bulletDelayInMs
+            : 10,
         };
+    this.bulletOptions = bulletOptions;
     this.spawns = polygon(
       this,
       this.r,
@@ -242,7 +261,7 @@ class Danmaku extends Vector {
             bulletOptions.bulletPerSec,
             bulletOptions.size
           ),
-        options.createOptions ? options.createOptions.bulletDelayInMs : 10
+        bulletOptions.createDelay
       );
       return spawn;
     });
@@ -264,7 +283,9 @@ class Danmaku extends Vector {
     rotatePoints(this.spawns, this.rotation, this);
     this.spawns.forEach((spawn) => {
       spawn.setDirection(Math.atan2(spawn.y - this.y, spawn.x - this.x));
-      drawCircle(spawn, 2);
+      if (!this.hidden) {
+        drawCircle(spawn, 2);
+      }
     });
     this.#onUpdate();
   }
@@ -276,6 +297,109 @@ class Danmaku extends Vector {
     this.x = x;
     this.y = y;
   }
+
+  setRadius(newVal: number): void {
+    this.spawns.forEach((spawner) => {
+      spawner.movePosition(newVal - this.r, spawner.direction);
+    });
+    this.r = newVal;
+  }
+
+  toggleHide(): void {
+    this.hidden = !this.hidden;
+    if (this.hidden) {
+      this.spawns.forEach((spawner) => {
+        spawner.stopBullet();
+      });
+    } else {
+      this.spawns.forEach((spawner) => {
+        spawner.startFire(
+          this.bulletOptions.speed,
+          this.bulletOptions.bulletPerSec,
+          this.bulletOptions.size
+        );
+      });
+    }
+  }
+
+  setSpawner(amount: number): void {
+    this.spawns.forEach((spawner) => spawner.stopBullet());
+    this.spawns = polygon(this, this.r, amount).map((point) => {
+      const angle = Math.atan2(point.y - this.y, point.x - this.x);
+      const spawn = new Spawn(point.x, point.y, angle, {
+        onCreate: () => {},
+      });
+      setTimeout(
+        () =>
+          spawn.startFire(
+            this.bulletOptions.speed,
+            this.bulletOptions.bulletPerSec,
+            this.bulletOptions.size
+          ),
+        this.bulletOptions.createDelay
+      );
+      return spawn;
+    });
+  }
+
+  setBulletSpeed(amount: number): void {
+    this.bulletOptions.speed = amount;
+    this.spawns.forEach((spawner) => {
+      spawner.stopBullet();
+      spawner.startFire(
+        this.bulletOptions.speed,
+        this.bulletOptions.bulletPerSec,
+        this.bulletOptions.size
+      );
+    });
+  }
+
+  setBulletSize(amount: number): void {
+    this.bulletOptions.size = amount;
+    this.spawns.forEach((spawner) => {
+      spawner.stopBullet();
+      spawner.startFire(
+        this.bulletOptions.speed,
+        this.bulletOptions.bulletPerSec,
+        this.bulletOptions.size
+      );
+    });
+  }
+
+  setBulletSpawnRate(amount: number): void {
+    this.bulletOptions.bulletPerSec = amount;
+    this.spawns.forEach((spawner) => {
+      spawner.stopBullet();
+      spawner.startFire(
+        this.bulletOptions.speed,
+        this.bulletOptions.bulletPerSec,
+        this.bulletOptions.size
+      );
+    });
+  }
+
+  setRotationSpeed(value: number): void {
+    this.rotation = value;
+  }
+
+  setSpeedChange(value: number): void {
+    this.rotationChange = {
+      speedLimit: 15,
+      speedChange: value / 10,
+    };
+  }
+
+  toggleRotationChange(value: number): void {
+    if (this.rotationChange) {
+      delete this.rotationChange;
+      this.rotation = value;
+    } else {
+      this.rotationChange = {
+        speedLimit: 15,
+        speedChange: value / 10,
+      };
+    }
+  }
 }
 
 const mouse = new Vector(0, 0);
@@ -285,35 +409,126 @@ canvas.addEventListener("mousemove", (e) => {
 
 let bullets: Bullet[] = [];
 const options = {
-  r: 0.1,
-  rotationSpeed: 3,
-  // rotationChange: {
-  //   speedChange: 2,
-  // speedLimit: 20,
-  // },
-  spawner: 12,
+  r: 1,
+  rotationSpeed: 8,
+  rotationChange: {
+    speedChange: 2,
+    speedLimit: 15,
+  },
+  spawner: 3,
   bulletOptions: {
     bulletPerSec: 30,
-    speed: 5,
-    size: 10,
+    speed: 2,
+    size: 3,
   },
   createOptions: {
     bulletDelayInMs: 300,
   },
 };
 
+/*
+ *Controls
+ */
+
+function getE(id: string) {
+  return document.getElementById(id);
+}
+
+getE("mirror")?.addEventListener("change", (e) => {
+  danmaku1?.toggleHide();
+});
+
+getE("radius")?.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    const newVal = (target as HTMLInputElement).value;
+    danmaku.setRadius(Number(newVal));
+    danmaku1.setRadius(Number(newVal));
+  }
+});
+
+getE("spawner")?.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    const newVal = (target as HTMLInputElement).value;
+    danmaku.setSpawner(Number(newVal));
+    danmaku1.setSpawner(Number(newVal));
+  }
+});
+
+getE("bullet-speed")?.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    const newVal = (target as HTMLInputElement).value;
+    danmaku.setBulletSpeed(Number(newVal));
+    danmaku1.setBulletSpeed(Number(newVal));
+  }
+});
+getE("bullet-size")?.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    const newVal = (target as HTMLInputElement).value;
+    danmaku.setBulletSize(Number(newVal));
+    danmaku1.setBulletSize(Number(newVal));
+  }
+});
+getE("spawn-rate")?.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    const newVal = (target as HTMLInputElement).value;
+    danmaku.setBulletSpawnRate(Number(newVal));
+    danmaku1.setBulletSpawnRate(Number(newVal));
+  }
+});
+const speedChange = getE("speed-change") as HTMLInputElement;
+const rotationSpeed = getE("rotation-speed") as HTMLInputElement;
+getE("rotation-change")?.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    const newVal = (target as HTMLInputElement).checked;
+    if (newVal) {
+      speedChange.disabled = false;
+      rotationSpeed.disabled = true;
+      speedChange.parentElement?.setAttribute("class", "");
+      rotationSpeed.parentElement?.setAttribute("class", "disabled");
+      danmaku.toggleRotationChange(Number(speedChange.value));
+      danmaku1.toggleRotationChange(Number(speedChange.value) * -1);
+    } else {
+      speedChange.disabled = true;
+      rotationSpeed.disabled = false;
+      speedChange.parentElement?.setAttribute("class", "disabled");
+      rotationSpeed.parentElement?.setAttribute("class", "");
+      danmaku.toggleRotationChange(Number(rotationSpeed.value));
+      danmaku1.toggleRotationChange(Number(rotationSpeed.value) * -1);
+    }
+  }
+});
+speedChange.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    danmaku.setSpeedChange(Number((target as HTMLInputElement).value));
+    danmaku1.setSpeedChange(Number((target as HTMLInputElement).value) * -1);
+  }
+});
+rotationSpeed.addEventListener("change", (e) => {
+  const { target } = e;
+  if (target) {
+    danmaku.setRotationSpeed(Number((target as HTMLInputElement).value));
+    danmaku1.setRotationSpeed(Number((target as HTMLInputElement).value) * -1);
+  }
+});
+
 const danmaku = new Danmaku(canvas.width / 2, canvas.height / 2, options);
-const danmaku1 = new Danmaku(canvas.width / 2, canvas.height / 2, {
+let danmaku1 = new Danmaku(canvas.width / 2, canvas.height / 2, {
   ...options,
   rotationSpeed: options.rotationSpeed * -1,
-  // rotationChange: {
-  //   ...options.rotationChange,
-  //   speedChange: options.rotationChange.speedChange * -1,
-  // },
+  rotationChange: {
+    ...options.rotationChange,
+    speedChange: options.rotationChange.speedChange * -1,
+  },
 });
 
 const draw = () => {
-  drawCircle(mouse, 5);
   danmaku.update();
   danmaku1.update();
   for (let i = 0; i < bullets.length; i++) {
@@ -332,7 +547,6 @@ const startAnimation = () => {
   const framerate: number = 1000 / 60;
 
   const animate = () => {
-    // requestAnimationFrame(animate);
     setTimeout(animate, framerate);
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -340,4 +554,5 @@ const startAnimation = () => {
   };
   animate();
 };
+
 startAnimation();
