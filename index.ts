@@ -53,8 +53,23 @@ const drawShape = (points: Vector[]) => {
   ctx.fill();
 };
 
-const rotatePoints = (points: Vector[], deg: number, ogPoint: Vector) => {
+const rotatePoints = (
+  points: Vector[] | Vector,
+  deg: number,
+  ogPoint: Vector
+) => {
   const val = deg / 100;
+  if (points instanceof Vector) {
+    points.setPosition(
+      Math.cos(val) * (points.x - ogPoint.x) -
+        Math.sin(val) * (points.y - ogPoint.y) +
+        ogPoint.x,
+      Math.sin(val) * (points.x - ogPoint.x) +
+        Math.cos(val) * (points.y - ogPoint.y) +
+        ogPoint.y
+    );
+    return;
+  }
   for (let i = 0; i < points.length; i++) {
     const point = points[i];
     point.setPosition(
@@ -78,57 +93,6 @@ const rand = (limit: number, rounded?: boolean) => {
  *WORKING SPACE BELOW
  */
 
-class Spawn extends Vector {
-  direction: number;
-  interval: number;
-  #bulletOptions: {
-    onCreate?: ((bullet: Bullet) => void) | undefined;
-  };
-
-  constructor(
-    x: number,
-    y: number,
-    direction: number,
-    bulletOptions: {
-      onCreate?: (bullet: Bullet) => void;
-    }
-  ) {
-    super(x, y);
-    this.direction = direction;
-    this.interval = 0;
-    this.#bulletOptions = bulletOptions;
-  }
-
-  setDirection(newVal: number) {
-    this.direction = newVal;
-  }
-
-  movePosition(distance: number, direction: number): void {
-    this.x = this.x + distance * Math.cos(direction);
-    this.y = this.y + distance * Math.sin(direction);
-  }
-
-  fire(bulletSpeed: number, bulletSize: number) {
-    bullets.push(
-      new Bullet(this.x, this.y, this.direction, {
-        r: bulletSize,
-        speed: bulletSpeed,
-        onCreate: this.#bulletOptions.onCreate,
-      })
-    );
-  }
-
-  startFire(bulletSpeed: number, bulletPerSec: number, bulletSize: number) {
-    this.interval = setInterval(() => {
-      this.fire(bulletSpeed, bulletSize);
-    }, 1000 / bulletPerSec);
-  }
-
-  stopBullet() {
-    clearInterval(this.interval);
-  }
-}
-
 class Bullet extends Vector {
   direction: number;
   speed: number;
@@ -147,14 +111,14 @@ class Bullet extends Vector {
   ) {
     super(x, y);
     this.direction = direction;
-    this.speed = options.speed ? options.speed : 3;
+    this.speed = (options.speed || 180) / 60;
     this.r = options.r ? options.r : 3;
     if (options.onCreate) options.onCreate(this);
   }
 
-  update() {
-    this.x = this.x + this.speed * Math.cos(this.direction);
-    this.y = this.y + this.speed * Math.sin(this.direction);
+  update(frameDiff: number) {
+    this.x = this.x + this.speed * Math.cos(this.direction) * frameDiff;
+    this.y = this.y + this.speed * Math.sin(this.direction) * frameDiff;
   }
 
   inBorder() {
@@ -167,6 +131,69 @@ class Bullet extends Vector {
       return false;
     }
     return true;
+  }
+}
+
+class Spawn extends Vector {
+  direction: number;
+  interval: number;
+  #bulletOptions: {
+    onCreate?: ((bullet: Bullet) => void) | undefined;
+  };
+  parent: Danmaku;
+
+  constructor(
+    x: number,
+    y: number,
+    direction: number,
+    bulletOptions: {
+      onCreate?: (bullet: Bullet) => void;
+    },
+    danmaku: Danmaku
+  ) {
+    super(x, y);
+    this.direction = direction;
+    this.interval = 0;
+    this.#bulletOptions = bulletOptions;
+    this.parent = danmaku;
+  }
+
+  movePosition(distance: number, direction: number): void {
+    this.x = this.x + distance * Math.cos(direction);
+    this.y = this.y + distance * Math.sin(direction);
+  }
+
+  fire(bulletSpeed: number, bulletSize: number, position: Vector): void {
+    bullets.push(
+      new Bullet(position.x, position.y, this.direction, {
+        r: bulletSize,
+        speed: bulletSpeed,
+        onCreate: this.#bulletOptions.onCreate,
+      })
+    );
+  }
+
+  startFire(bulletSpeed: number, bulletPerSec: number, bulletSize: number) {
+    this.interval = setInterval(() => {
+      const now = Date.now(),
+        timeDiff = (now - lastFrame) / framerate,
+        predictedPos = new Vector(this.x, this.y);
+      rotatePoints(predictedPos, this.parent.rotation * timeDiff, this.parent);
+      this.direction = Math.atan2(
+        predictedPos.y - this.parent.y,
+        predictedPos.x - this.parent.x
+      );
+      const trueSpeed = bulletSpeed / 60;
+      predictedPos.setPosition(
+        predictedPos.x + trueSpeed * Math.cos(this.direction) * (1 - timeDiff),
+        predictedPos.y + trueSpeed * Math.sin(this.direction) * (1 - timeDiff)
+      );
+      this.fire(bulletSpeed, bulletSize, predictedPos);
+    }, 1000 / bulletPerSec);
+  }
+
+  stopBullet() {
+    clearInterval(this.interval);
   }
 }
 
@@ -225,8 +252,8 @@ class Danmaku extends Vector {
       : undefined;
     const bulletOptions = options.bulletOptions
       ? {
-          speed: options.bulletOptions.speed ? options.bulletOptions.speed : 4,
-          size: options.bulletOptions.size ? options.bulletOptions.size : 5,
+          speed: options.bulletOptions.speed || 4,
+          size: options.bulletOptions.size || 5,
           bulletPerSec: options.bulletOptions.bulletPerSec
             ? options.bulletOptions.bulletPerSec
             : 20,
@@ -251,9 +278,15 @@ class Danmaku extends Vector {
       options.spawner ? options.spawner : 6
     ).map((point) => {
       const angle = Math.atan2(point.y - this.y, point.x - this.x);
-      const spawn = new Spawn(point.x, point.y, angle, {
-        onCreate: bulletOptions.onCreate,
-      });
+      const spawn = new Spawn(
+        point.x,
+        point.y,
+        angle,
+        {
+          onCreate: bulletOptions.onCreate,
+        },
+        this
+      );
       setTimeout(
         () =>
           spawn.startFire(
@@ -282,7 +315,6 @@ class Danmaku extends Vector {
     }
     rotatePoints(this.spawns, this.rotation, this);
     this.spawns.forEach((spawn) => {
-      spawn.setDirection(Math.atan2(spawn.y - this.y, spawn.x - this.x));
       if (!this.hidden) {
         drawCircle(spawn, 2);
       }
@@ -323,27 +355,34 @@ class Danmaku extends Vector {
   }
 
   setSpawner(amount: number): void {
-    this.spawns.forEach((spawner) => spawner.stopBullet());
+    if (!this.hidden) {
+      this.spawns.forEach((spawner) => spawner.stopBullet());
+    }
     this.spawns = polygon(this, this.r, amount).map((point) => {
       const angle = Math.atan2(point.y - this.y, point.x - this.x);
-      const spawn = new Spawn(point.x, point.y, angle, {
-        onCreate: () => {},
-      });
-      setTimeout(
-        () =>
-          spawn.startFire(
-            this.bulletOptions.speed,
-            this.bulletOptions.bulletPerSec,
-            this.bulletOptions.size
-          ),
-        this.bulletOptions.createDelay
+      const spawn = new Spawn(
+        point.x,
+        point.y,
+        angle,
+        {
+          onCreate: () => {},
+        },
+        this
       );
+      if (!this.hidden) {
+        spawn.startFire(
+          this.bulletOptions.speed,
+          this.bulletOptions.bulletPerSec,
+          this.bulletOptions.size
+        );
+      }
       return spawn;
     });
   }
 
   setBulletSpeed(amount: number): void {
     this.bulletOptions.speed = amount;
+    if (this.hidden) return;
     this.spawns.forEach((spawner) => {
       spawner.stopBullet();
       spawner.startFire(
@@ -356,6 +395,7 @@ class Danmaku extends Vector {
 
   setBulletSize(amount: number): void {
     this.bulletOptions.size = amount;
+    if (this.hidden) return;
     this.spawns.forEach((spawner) => {
       spawner.stopBullet();
       spawner.startFire(
@@ -368,6 +408,7 @@ class Danmaku extends Vector {
 
   setBulletSpawnRate(amount: number): void {
     this.bulletOptions.bulletPerSec = amount;
+    if (this.hidden) return;
     this.spawns.forEach((spawner) => {
       spawner.stopBullet();
       spawner.startFire(
@@ -408,6 +449,7 @@ canvas.addEventListener("mousemove", (e) => {
 });
 
 let bullets: Bullet[] = [];
+const framerate: number = 1000 / 60;
 const options = {
   r: 1,
   rotationSpeed: 8,
@@ -418,7 +460,7 @@ const options = {
   spawner: 3,
   bulletOptions: {
     bulletPerSec: 30,
-    speed: 2,
+    speed: 180,
     size: 3,
   },
   createOptions: {
@@ -435,7 +477,7 @@ function getE(id: string) {
 }
 
 getE("mirror")?.addEventListener("change", (e) => {
-  danmaku1?.toggleHide();
+  danmaku1.toggleHide();
 });
 
 getE("radius")?.addEventListener("change", (e) => {
@@ -529,11 +571,15 @@ let danmaku1 = new Danmaku(canvas.width / 2, canvas.height / 2, {
 });
 
 const draw = () => {
+  const currentFrame = Date.now();
+  const frameDiff = (currentFrame - lastFrame) / framerate;
+
   danmaku.update();
   danmaku1.update();
+  lastFrame = currentFrame;
   for (let i = 0; i < bullets.length; i++) {
     const bullet = bullets[i];
-    bullet.update();
+    bullet.update(frameDiff);
     if (bullet.inBorder()) {
       drawCircle(bullet, bullet.r);
     } else {
@@ -544,8 +590,6 @@ const draw = () => {
 };
 
 const startAnimation = () => {
-  const framerate: number = 1000 / 60;
-
   const animate = () => {
     setTimeout(animate, framerate);
 
@@ -555,4 +599,5 @@ const startAnimation = () => {
   animate();
 };
 
+let lastFrame: number = Date.now();
 startAnimation();
